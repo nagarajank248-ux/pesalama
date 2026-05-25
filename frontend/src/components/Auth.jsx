@@ -30,7 +30,7 @@ const Auth = ({ setToken, setUsername }) => {
             }
         } catch (err) {
             console.error("Auth error:", err.response?.data || err.message);
-            setError(err.response?.data?.error || 'Connection error. Check if backend is running.');
+            setError(err.response?.data?.error || 'Something went wrong. Please try again later.');
         } finally {
             setLoading(false);
         }
