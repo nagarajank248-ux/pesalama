@@ -7,11 +7,30 @@ const MessageSchema = new mongoose.Schema({
     },
     receiver: {
         type: String,
-        required: true
+        required: false // Optional for group messages
+    },
+    groupId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Group',
+        required: false
+    },
+    isGroup: {
+        type: Boolean,
+        default: false
     },
     text: {
         type: String,
         required: true
+    },
+    messageType: {
+        type: String,
+        enum: ['text', 'image'],
+        default: 'text'
+    },
+    status: {
+        type: String,
+        enum: ['sent', 'delivered', 'read'],
+        default: 'sent'
     },
 }, { timestamps: true });
 
