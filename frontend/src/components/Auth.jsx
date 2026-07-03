@@ -37,14 +37,14 @@ const Auth = ({ setToken, setUsername }) => {
     };
 
     return (
-        <div style={{ 
+        <div className="auth-container" style={{ 
             height: '100vh', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
             padding: '20px'
         }}>
-            <div className="glass-panel" style={{ 
+            <div className="glass-panel auth-card" style={{ 
                 width: '100%',
                 maxWidth: '400px', 
                 padding: '40px', 

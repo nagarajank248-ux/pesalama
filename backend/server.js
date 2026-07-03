@@ -19,6 +19,12 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
+// Skip ngrok warning
+app.use((req, res, next) => {
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+    next();
+});
+
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/messages", require("./routes/messages"));
 app.use("/api/groups", require("./routes/groups"));
@@ -77,6 +83,18 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("mark_chat_read", async (data) => {
+        const { sender, receiver } = data;
+        await Message.updateMany(
+            { sender, receiver, status: { $ne: 'read' } },
+            { status: 'read' }
+        );
+        const senderSocketId = users[sender];
+        if (senderSocketId) {
+            io.to(senderSocketId).emit("chat_read", { reader: receiver });
+        }
+    });
+
     socket.on("join_group", (groupId) => {
         socket.join(groupId);
         console.log(`User joined group ${groupId}`);
@@ -86,6 +104,17 @@ io.on("connection", (socket) => {
         const { sender, groupId, text, messageType } = data;
         const newMessage = await Message.create({ sender, groupId, text, isGroup: true, messageType: messageType || 'text' });
         io.to(groupId).emit("receive_message", newMessage);
+    });
+
+    socket.on("call_signal", (data) => {
+        const { to, signal, from, type } = data;
+        const receiverSocketId = users[to];
+        console.log(`[CALL] Signal from ${from} to ${to} (type: ${type}). Receiver Socket: ${receiverSocketId}`);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("call_signal", { from, signal, type });
+        } else {
+            console.log(`[CALL] Failed to route: ${to} is offline/unregistered.`);
+        }
     });
 
     socket.on("disconnect", async () => {
@@ -103,7 +132,7 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
+server.listen(PORT,'0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
 });
 

@@ -4,6 +4,17 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const auth = require("../middleware/auth");
 const { nanoid } = require("nanoid");
+const upload = require("../middleware/upload");
+
+router.post("/profile-pic", auth, upload.single("image"), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+        const user = await User.findByIdAndUpdate(req.user.id, { profilePic: req.file.path }, { new: true }).select("-password");
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 router.get("/users", auth, async (req, res) => {
     try {

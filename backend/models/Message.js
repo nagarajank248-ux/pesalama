@@ -24,7 +24,7 @@ const MessageSchema = new mongoose.Schema({
     },
     messageType: {
         type: String,
-        enum: ['text', 'image'],
+        enum: ['text', 'image', 'call'],
         default: 'text'
     },
     status: {
@@ -32,6 +32,10 @@ const MessageSchema = new mongoose.Schema({
         enum: ['sent', 'delivered', 'read'],
         default: 'sent'
     },
+    deletedFor: {
+        type: [String],
+        default: []
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Message', MessageSchema);
