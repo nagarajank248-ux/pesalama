@@ -3,6 +3,135 @@ import io from 'socket.io-client';
 import EmojiPicker from 'emoji-picker-react';
 import api from '../api';
 
+// Web Audio API Ringtone Synthesizer
+class RingtonePlayer {
+    constructor() {
+        this.audioCtx = null;
+        this.interval = null;
+        this.type = null;
+    }
+
+    start(type) {
+        this.stop();
+        this.type = type;
+        
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return;
+            this.audioCtx = new AudioContextClass();
+        } catch (e) {
+            console.error("Web Audio API not supported", e);
+            return;
+        }
+
+        const playTone = () => {
+            if (!this.audioCtx || this.audioCtx.state === 'closed') return;
+            
+            if (this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+
+            const time = this.audioCtx.currentTime;
+
+            if (type === 'calling') {
+                // Outgoing dial tone: double beep (400Hz & 450Hz played together for 1.2s, then silent for 2s)
+                const osc1 = this.audioCtx.createOscillator();
+                const osc2 = this.audioCtx.createOscillator();
+                const gainNode = this.audioCtx.createGain();
+
+                osc1.frequency.value = 400;
+                osc2.frequency.value = 450;
+                
+                gainNode.gain.setValueAtTime(0, time);
+                gainNode.gain.linearRampToValueAtTime(0.12, time + 0.1);
+                gainNode.gain.setValueAtTime(0.12, time + 1.2);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, time + 1.3);
+
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(this.audioCtx.destination);
+
+                osc1.start(time);
+                osc2.start(time);
+
+                setTimeout(() => {
+                    try {
+                        osc1.stop();
+                        osc2.stop();
+                        osc1.disconnect();
+                        osc2.disconnect();
+                        gainNode.disconnect();
+                    } catch (e) {}
+                }, 1500);
+
+            } else if (type === 'ringing') {
+                // Incoming phone ringtone: warbling double ring (450Hz with LFO mod, 0.4s on, 0.2s off, 0.4s on, 2s silent)
+                const playRingNode = (startTime, duration) => {
+                    if (!this.audioCtx || this.audioCtx.state === 'closed') return;
+                    
+                    const osc = this.audioCtx.createOscillator();
+                    const lfo = this.audioCtx.createOscillator();
+                    const lfoGain = this.audioCtx.createGain();
+                    const gainNode = this.audioCtx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, startTime);
+
+                    lfo.frequency.value = 18; // 18Hz warble
+                    lfoGain.gain.value = 30; // 30Hz range
+
+                    gainNode.gain.setValueAtTime(0, startTime);
+                    gainNode.gain.linearRampToValueAtTime(0.25, startTime + 0.05);
+                    gainNode.gain.setValueAtTime(0.25, startTime + duration - 0.05);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+                    lfo.connect(lfoGain);
+                    lfoGain.connect(osc.frequency);
+                    
+                    osc.connect(gainNode);
+                    gainNode.connect(this.audioCtx.destination);
+
+                    lfo.start(startTime);
+                    osc.start(startTime);
+
+                    setTimeout(() => {
+                        try {
+                            lfo.stop();
+                            osc.stop();
+                            lfo.disconnect();
+                            osc.disconnect();
+                            lfoGain.disconnect();
+                            gainNode.disconnect();
+                        } catch (e) {}
+                    }, (startTime - this.audioCtx.currentTime + duration + 0.5) * 1000);
+                };
+
+                playRingNode(time, 0.4);
+                playRingNode(time + 0.6, 0.4);
+            }
+        };
+
+        playTone();
+        this.interval = setInterval(playTone, 3000);
+    }
+
+    stop() {
+        if (this.interval) {
+            clearInterval(this.interval);
+            this.interval = null;
+        }
+        if (this.audioCtx) {
+            try {
+                if (this.audioCtx.state !== 'closed') {
+                    this.audioCtx.close();
+                }
+            } catch (e) {}
+            this.audioCtx = null;
+        }
+        this.type = null;
+    }
+}
+
 const Chat = ({ username, onLogout, onProfileClick }) => {
     console.log("Chat rendering:", { username });
     const [friends, setFriends] = useState([]);
@@ -79,6 +208,29 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     useEffect(() => { callerNameRef.current = callerName; }, [callerName]);
     useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
     useEffect(() => { callTypeRef.current = callType; }, [callType]);
+
+    const ringtonePlayerRef = useRef(null);
+    if (!ringtonePlayerRef.current) {
+        ringtonePlayerRef.current = new RingtonePlayer();
+    }
+
+    useEffect(() => {
+        if (isCallActive) {
+            if (callStatus === 'Calling...') {
+                ringtonePlayerRef.current.start('calling');
+            } else if (callStatus === 'Ringing...') {
+                ringtonePlayerRef.current.start('ringing');
+            } else if (callStatus === 'Connected') {
+                ringtonePlayerRef.current.stop();
+            }
+        } else {
+            ringtonePlayerRef.current.stop();
+        }
+
+        return () => {
+            ringtonePlayerRef.current?.stop();
+        };
+    }, [isCallActive, callStatus]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1239,8 +1391,8 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                             </div>
                         </div>
                     ) : (
-                            <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e293b50' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div className="chat-area-header" style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e293b50', zIndex: 5 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                                     <button 
                                         className="back-button-mobile"
                                         onClick={() => { setSelectedUser(null); setSelectedGroup(null); }}
@@ -1256,24 +1408,25 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                     >
                                         ←
                                     </button>
-                                    <div onClick={() => setShowUserInfo(!showUserInfo)} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: selectedGroup ? '#10b981' : (selectedUserData?.isOnline ? '#10b981' : '#6366f1'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', overflow: 'hidden' }}>
+                                    <div onClick={() => setShowUserInfo(!showUserInfo)} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', minWidth: 0 }}>
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: selectedGroup ? '#10b981' : (selectedUserData?.isOnline ? '#10b981' : '#6366f1'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', overflow: 'hidden', flexShrink: 0 }}>
                                             {selectedGroup ? 'G' : (selectedUserData?.profilePic ? <img src={selectedUserData.profilePic} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : (selectedUser?.username ? selectedUser.username[0].toUpperCase() : '?'))}
                                         </div>
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ overflow: 'hidden' }}>
+                                            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 {selectedGroup ? selectedGroup.name : selectedUser?.username}
                                                 {mutedChats.includes(selectedGroup ? selectedGroup._id : selectedUser?.username) && <span style={{ fontSize: '14px' }} title="Muted">🔇</span>}
                                             </h3>
-                                            <div style={{ fontSize: '12px', color: typingUser ? '#6366f1' : (selectedGroup ? '#94a3b8' : (selectedUserData?.isOnline ? '#10b981' : '#94a3b8')) }}>
+                                            <div style={{ fontSize: '12px', color: typingUser ? '#6366f1' : (selectedGroup ? '#94a3b8' : (selectedUserData?.isOnline ? '#10b981' : '#94a3b8')), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 {selectedGroup ? `${(selectedGroup?.members || []).length} members` : (typingUser ? 'typing...' : (selectedUserData?.isOnline ? 'Online' : selectedUserData?.lastSeen ? `Last seen ${new Date(selectedUserData.lastSeen).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'Offline'))}
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    {/* Audio and Video Call Icons */}
-                                    {!selectedGroup && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '12px' }}>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                                    {/* Audio and Video Call Icons on the right side */}
+                                    {!selectedGroup && !showSearchInput && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); startCall('audio'); }}
                                                 title="Start Audio Call"
@@ -1294,8 +1447,6 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                             </button>
                                         </div>
                                     )}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                     {showSearchInput && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#334155', borderRadius: '8px', padding: '6px 12px' }}>
                                             <input 
@@ -2103,49 +2254,58 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                     {/* Glowing pulsate avatar OR Video elements */}
                     {callType === 'video' ? (
                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', zIndex: 1 }}>
-                            {/* Remote Video (takes up full container when connected) */}
-                            {callStatus === 'Connected' ? (
-                                <video 
-                                    ref={remoteVideoRef} 
-                                    autoPlay 
-                                    playsInline 
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                />
-                            ) : (
-                                /* Pre-connection: show local camera stream full screen */
-                                <video 
-                                    ref={localVideoRef} 
-                                    autoPlay 
-                                    playsInline 
-                                    muted 
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
-                                />
-                            )}
+                            {/* Remote Video (takes up full container when connected, always mounted) */}
+                            <video 
+                                ref={remoteVideoRef} 
+                                autoPlay 
+                                playsInline 
+                                style={{ 
+                                    width: '100%', 
+                                    height: '100%', 
+                                    objectFit: 'cover', 
+                                    display: callStatus === 'Connected' ? 'block' : 'none',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    zIndex: 1
+                                }} 
+                            />
 
-                            {/* Local Video Picture-in-Picture (floating thumbnail in the corner when connected) */}
-                            {callStatus === 'Connected' && (
-                                <div style={{ 
-                                    position: 'absolute', 
-                                    top: '24px', 
-                                    right: '24px', 
-                                    width: '110px', 
-                                    height: '160px', 
-                                    borderRadius: '12px', 
-                                    overflow: 'hidden', 
-                                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                                    border: '2px solid rgba(255,255,255,0.2)',
-                                    zIndex: 2,
-                                    backgroundColor: '#1e293b'
-                                }}>
-                                    <video 
-                                        ref={localVideoRef} 
-                                        autoPlay 
-                                        playsInline 
-                                        muted 
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
-                                    />
-                                </div>
-                            )}
+                            {/* Local Video (Always mounted: full screen when calling/connecting, Pip thumbnail in the corner when connected) */}
+                            <video 
+                                ref={localVideoRef} 
+                                autoPlay 
+                                playsInline 
+                                muted 
+                                style={
+                                    callStatus === 'Connected' 
+                                        ? { 
+                                            position: 'absolute', 
+                                            top: '24px', 
+                                            right: '24px', 
+                                            width: '110px', 
+                                            height: '160px', 
+                                            borderRadius: '12px', 
+                                            overflow: 'hidden', 
+                                            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                                            border: '2px solid rgba(255,255,255,0.2)',
+                                            zIndex: 2,
+                                            backgroundColor: '#1e293b',
+                                            objectFit: 'cover', 
+                                            transform: 'scaleX(-1)' 
+                                          }
+                                        : { 
+                                            width: '100%', 
+                                            height: '100%', 
+                                            objectFit: 'cover', 
+                                            transform: 'scaleX(-1)',
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            zIndex: 1
+                                          }
+                                } 
+                            />
                         </div>
                     ) : (
                         /* Voice call avatar display */

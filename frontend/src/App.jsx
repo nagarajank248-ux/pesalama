@@ -24,7 +24,7 @@ function App() {
     }
 
     return (
-        <div className="App" style={{ backgroundColor: '#0f172a', minHeight: '100vh' }}>
+        <div className="App" style={{ backgroundColor: '#0f172a', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {!token ? (
                 <Auth setToken={setToken} setUsername={setUsername} />
             ) : view === 'chat' ? (
