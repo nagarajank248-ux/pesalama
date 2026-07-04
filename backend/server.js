@@ -111,7 +111,7 @@ io.on("connection", (socket) => {
         const receiverSocketId = users[to];
         console.log(`[CALL] Signal from ${from} to ${to} (type: ${type}). Receiver Socket: ${receiverSocketId}`);
         if (receiverSocketId) {
-            io.to(receiverSocketId).emit("call_signal", { from, signal, type });
+            io.to(receiverSocketId).emit("call_signal", { from, signal, type, callType: data.callType });
         } else {
             console.log(`[CALL] Failed to route: ${to} is offline/unregistered.`);
         }
