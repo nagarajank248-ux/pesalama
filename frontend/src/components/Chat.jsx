@@ -188,6 +188,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [callPartnerName, setCallPartnerName] = useState('');
     const [callPartnerPic, setCallPartnerPic] = useState('');
+    const [isRemoteVideoActive, setIsRemoteVideoActive] = useState(false);
 
     const dragStartRef = useRef({ x: 0, y: 0 });
     const posStartRef = useRef({ x: 0, y: 0 });
@@ -474,6 +475,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         setFacingMode('user');
         setCallPartnerName(selectedUser?.username || '');
         setCallPartnerPic(selectedUserData?.profilePic || '');
+        setIsRemoteVideoActive(false);
         iceCandidatesQueueRef.current = [];
 
         try {
@@ -512,6 +514,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                 if (type === 'video') {
                     if (remoteVideoRef.current) {
                         remoteVideoRef.current.srcObject = event.streams[0];
+                        setIsRemoteVideoActive(true);
                     }
                 } else {
                     if (remoteAudioRef.current) {
@@ -545,6 +548,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     const acceptCall = async () => {
         setCallStatus('Connecting...');
         setIsCallMinimized(false);
+        setIsRemoteVideoActive(false);
         setFacingMode('user');
         const type = callTypeRef.current;
         try {
@@ -583,6 +587,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                 if (type === 'video') {
                     if (remoteVideoRef.current) {
                         remoteVideoRef.current.srcObject = event.streams[0];
+                        setIsRemoteVideoActive(true);
                     }
                 } else {
                     if (remoteAudioRef.current) {
@@ -672,6 +677,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
 
         setIsCallActive(false);
         setIsCallMinimized(false);
+        setIsRemoteVideoActive(false);
         setCallRole(null);
         setCallerName('');
         setCallPartnerName('');
@@ -2546,7 +2552,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                     width: '100%', 
                                     height: '100%', 
                                     objectFit: 'cover', 
-                                    display: callStatus === 'Connected' ? 'block' : 'none',
+                                    display: isRemoteVideoActive ? 'block' : 'none',
                                     position: 'absolute',
                                     top: 0,
                                     left: 0,
@@ -2561,7 +2567,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                 playsInline 
                                 muted 
                                 style={
-                                    callStatus === 'Connected' 
+                                    isRemoteVideoActive 
                                         ? { 
                                             position: 'absolute', 
                                             top: isCallMinimized ? '8px' : '24px', 
