@@ -2357,14 +2357,14 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                     callStatus === 'Connected' 
                                         ? { 
                                             position: 'absolute', 
-                                            top: '24px', 
-                                            right: '24px', 
-                                            width: '110px', 
-                                            height: '160px', 
-                                            borderRadius: '12px', 
+                                            top: isCallMinimized ? '8px' : '24px', 
+                                            right: isCallMinimized ? '8px' : '24px', 
+                                            width: isCallMinimized ? '35px' : '110px', 
+                                            height: isCallMinimized ? '50px' : '160px', 
+                                            borderRadius: isCallMinimized ? '6px' : '12px', 
                                             overflow: 'hidden', 
                                             boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                                            border: '2px solid rgba(255,255,255,0.2)',
+                                            border: isCallMinimized ? '1px solid rgba(255,255,255,0.2)' : '2px solid rgba(255,255,255,0.2)',
                                             zIndex: 2,
                                             backgroundColor: '#1e293b',
                                             objectFit: 'cover', 
@@ -2474,6 +2474,67 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                             >
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    ) : isCallMinimized ? (
+                        <div style={{ 
+                            position: 'absolute', 
+                            bottom: '12px', 
+                            left: 0, 
+                            right: 0, 
+                            display: 'flex', 
+                            justifyContent: 'center', 
+                            gap: '8px', 
+                            zIndex: 10 
+                        }}>
+                            {/* Compact Mute Button */}
+                            <button
+                                type="button"
+                                onClick={toggleCallMute}
+                                style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    border: 'none',
+                                    backgroundColor: isCallMuted ? 'white' : 'rgba(15, 23, 42, 0.6)',
+                                    color: isCallMuted ? '#0f172a' : 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    outline: 'none'
+                                }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    {isCallMuted ? (
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M1 1l22 22" />
+                                    ) : (
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2" />
+                                    )}
+                                </svg>
+                            </button>
+
+                            {/* Compact Hang Up Button */}
+                            <button
+                                type="button"
+                                onClick={() => endVoiceCall(true)}
+                                style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    border: 'none',
+                                    backgroundColor: '#ef4444',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    outline: 'none'
+                                }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-5.33-5.34A19.79 19.79 0 0 1 3 2.18 2 2 0 0 1 5 0h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 7.91a16 16 0 0 0 2.6 3.4z" />
                                 </svg>
                             </button>
                         </div>
