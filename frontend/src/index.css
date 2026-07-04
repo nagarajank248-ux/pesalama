@@ -186,3 +186,79 @@ body {
   z-index: 5;
 }
 
+/* Chat message list styling */
+.chat-messages-list {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Chat Input Bar responsive configurations */
+.chat-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.chat-input-form {
+  padding: 16px 20px;
+  background-color: rgba(30, 41, 59, 0.45);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.chat-input-wrapper {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  background-color: #334155;
+  padding: 8px 12px;
+  border-radius: 16px;
+  align-items: center;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.chat-input-field {
+  flex: 1;
+  padding: 8px 12px;
+  background-color: transparent;
+  border: none;
+  color: white;
+  outline: none;
+  font-size: 16px !important; /* Prevents auto-zoom in iOS Safari */
+}
+
+/* Global input font size override to prevent auto-zoom on mobile devices */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+@media (max-width: 768px) {
+  .chat-messages-list {
+    padding: 12px 14px !important;
+    gap: 6px !important;
+  }
+  
+  .chat-input-form {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) 12px !important;
+    gap: 8px !important;
+  }
+  
+  .chat-input-wrapper {
+    gap: 6px !important;
+    padding: 6px 10px !important;
+    border-radius: 12px !important;
+  }
+  
+  .chat-input-field {
+    padding: 6px 8px !important;
+  }
+}
+
+

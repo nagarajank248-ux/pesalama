@@ -1612,7 +1612,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                             </div>
                         )}
 
-                        <div style={{ flex: 1, padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', ...getActiveThemeStyle() }}>
+                        <div className="chat-messages-list" style={{ ...getActiveThemeStyle() }}>
                             {(messages || []).filter(m => m?.text?.toLowerCase().includes(searchMessageQuery.toLowerCase())).map((m, idx) => (
                                 <div 
                                     key={idx} 
@@ -1737,18 +1737,18 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                             <div ref={messagesEndRef} />
                         </div>
 
-                        <div style={{ position: 'relative' }}>
+                        <div className="chat-input-container">
                             {showEmojiPicker && (
                                 <div style={{ position: 'absolute', bottom: '100%', left: '20px', zIndex: 100 }}>
                                     <EmojiPicker onEmojiClick={(emojiObject) => setNewMessage(prev => (prev || '') + emojiObject.emoji)} theme="dark" />
                                 </div>
                             )}
-                            <form onSubmit={sendMessage} style={{ padding: '20px', backgroundColor: '#1e293b50', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                <div style={{ flex: 1, display: 'flex', gap: '12px', backgroundColor: '#334155', padding: '8px', borderRadius: '16px', alignItems: 'center' }}>
+                            <form onSubmit={sendMessage} className="chat-input-form">
+                                <div className="chat-input-wrapper">
                                     <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', padding: '0 5px' }}>😊</button>
                                     <button type="button" onClick={() => fileInputRef.current.click()} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', padding: '0 5px' }}>📎</button>
                                     <input type="file" ref={fileInputRef} onChange={handleImageUpload} style={{ display: 'none' }} accept="image/*" />
-                                    <input type="text" value={newMessage} onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }} placeholder="Type a message..." style={{ flex: 1, padding: '8px 12px', backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none' }} />
+                                    <input type="text" className="chat-input-field" value={newMessage} onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }} placeholder="Type a message..." style={{ backgroundColor: 'transparent', border: 'none', color: 'white', outline: 'none' }} />
                                 </div>
                                 <button 
                                     type="submit" 
