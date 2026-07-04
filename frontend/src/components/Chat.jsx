@@ -189,6 +189,8 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     const [callPartnerName, setCallPartnerName] = useState('');
     const [callPartnerPic, setCallPartnerPic] = useState('');
     const [isRemoteVideoActive, setIsRemoteVideoActive] = useState(false);
+    const [hasLocalStream, setHasLocalStream] = useState(false);
+    const [hasRemoteStream, setHasRemoteStream] = useState(false);
 
     const dragStartRef = useRef({ x: 0, y: 0 });
     const posStartRef = useRef({ x: 0, y: 0 });
@@ -282,6 +284,21 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
 
     const isCallActiveRef = useRef(false);
     useEffect(() => { isCallActiveRef.current = isCallActive; }, [isCallActive]);
+
+    useEffect(() => {
+        if (isCallActive && hasLocalStream && localVideoRef.current && localStreamRef.current) {
+            console.log("[WEBRTC] Syncing local stream to video element", localStreamRef.current);
+            localVideoRef.current.srcObject = localStreamRef.current;
+        }
+    }, [isCallActive, hasLocalStream]);
+
+    useEffect(() => {
+        if (isCallActive && hasRemoteStream && remoteVideoRef.current && remoteStreamRef.current) {
+            console.log("[WEBRTC] Syncing remote stream to video element", remoteStreamRef.current);
+            remoteVideoRef.current.srcObject = remoteStreamRef.current;
+            setIsRemoteVideoActive(true);
+        }
+    }, [isCallActive, hasRemoteStream]);
 
     const ringtonePlayerRef = useRef(null);
     if (!ringtonePlayerRef.current) {
@@ -482,12 +499,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
             const constraints = { audio: true, video: type === 'video' ? { facingMode: 'user' } : false };
             const localStream = await navigator.mediaDevices.getUserMedia(constraints);
             localStreamRef.current = localStream;
-
-            setTimeout(() => {
-                if (type === 'video' && localVideoRef.current) {
-                    localVideoRef.current.srcObject = localStream;
-                }
-            }, 100);
+            setHasLocalStream(true);
 
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -510,17 +522,9 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
             };
 
             pc.ontrack = (event) => {
+                console.log("[WEBRTC] startCall ontrack received streams:", event.streams);
                 remoteStreamRef.current = event.streams[0];
-                if (type === 'video') {
-                    if (remoteVideoRef.current) {
-                        remoteVideoRef.current.srcObject = event.streams[0];
-                        setIsRemoteVideoActive(true);
-                    }
-                } else {
-                    if (remoteAudioRef.current) {
-                        remoteAudioRef.current.srcObject = event.streams[0];
-                    }
-                }
+                setHasRemoteStream(true);
             };
 
             const offer = await pc.createOffer();
@@ -555,12 +559,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
             const constraints = { audio: true, video: type === 'video' ? { facingMode: 'user' } : false };
             const localStream = await navigator.mediaDevices.getUserMedia(constraints);
             localStreamRef.current = localStream;
-
-            setTimeout(() => {
-                if (type === 'video' && localVideoRef.current) {
-                    localVideoRef.current.srcObject = localStream;
-                }
-            }, 100);
+            setHasLocalStream(true);
 
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -583,17 +582,9 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
             };
 
             pc.ontrack = (event) => {
+                console.log("[WEBRTC] acceptCall ontrack received streams:", event.streams);
                 remoteStreamRef.current = event.streams[0];
-                if (type === 'video') {
-                    if (remoteVideoRef.current) {
-                        remoteVideoRef.current.srcObject = event.streams[0];
-                        setIsRemoteVideoActive(true);
-                    }
-                } else {
-                    if (remoteAudioRef.current) {
-                        remoteAudioRef.current.srcObject = event.streams[0];
-                    }
-                }
+                setHasRemoteStream(true);
             };
 
             if (incomingOfferRef.current) {
@@ -678,6 +669,8 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         setIsCallActive(false);
         setIsCallMinimized(false);
         setIsRemoteVideoActive(false);
+        setHasLocalStream(false);
+        setHasRemoteStream(false);
         setCallRole(null);
         setCallerName('');
         setCallPartnerName('');
@@ -876,6 +869,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                     return;
                 }
                 incomingOfferRef.current = signal;
+                callTypeRef.current = incomingCallType || 'audio';
                 setCallType(incomingCallType || 'audio');
                 setCallerName(from);
                 setCallPartnerName(from);
