@@ -181,6 +181,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     const [callerName, setCallerName] = useState('');
     const [callType, setCallType] = useState('audio'); // 'audio' | 'video'
     const [isCameraOn, setIsCameraOn] = useState(true);
+    const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
     const [sidebarTab, setSidebarTab] = useState('chats');
     const [callLogs, setCallLogs] = useState([]);
     const localStreamRef = useRef(null);
@@ -208,6 +209,9 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     useEffect(() => { callerNameRef.current = callerName; }, [callerName]);
     useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
     useEffect(() => { callTypeRef.current = callType; }, [callType]);
+
+    const isCallActiveRef = useRef(false);
+    useEffect(() => { isCallActiveRef.current = isCallActive; }, [isCallActive]);
 
     const ringtonePlayerRef = useRef(null);
     if (!ringtonePlayerRef.current) {
@@ -397,11 +401,11 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         setCallSeconds(0);
         setIsCallMuted(false);
         setIsCallSpeaker(false);
-        setIsCameraOn(true);
+        setFacingMode('user');
         iceCandidatesQueueRef.current = [];
 
         try {
-            const constraints = { audio: true, video: type === 'video' };
+            const constraints = { audio: true, video: type === 'video' ? { facingMode: 'user' } : false };
             const localStream = await navigator.mediaDevices.getUserMedia(constraints);
             localStreamRef.current = localStream;
 
@@ -468,9 +472,10 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
 
     const acceptCall = async () => {
         setCallStatus('Connecting...');
+        setFacingMode('user');
         const type = callTypeRef.current;
         try {
-            const constraints = { audio: true, video: type === 'video' };
+            const constraints = { audio: true, video: type === 'video' ? { facingMode: 'user' } : false };
             const localStream = await navigator.mediaDevices.getUserMedia(constraints);
             localStreamRef.current = localStream;
 
@@ -597,6 +602,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         setCallerName('');
         setCallStatus('Calling...');
         setCallSeconds(0);
+        setFacingMode('user');
     };
 
     // Timer effect for connected calls
@@ -628,6 +634,47 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                 videoTrack.enabled = !videoTrack.enabled;
                 setIsCameraOn(videoTrack.enabled);
             }
+        }
+    };
+
+    const switchCamera = async () => {
+        if (!localStreamRef.current || callType !== 'video') return;
+
+        const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+        setFacingMode(newFacingMode);
+
+        try {
+            const videoTracks = localStreamRef.current.getVideoTracks();
+            if (videoTracks.length > 0) {
+                videoTracks.forEach(track => {
+                    track.stop();
+                    localStreamRef.current.removeTrack(track);
+                });
+            }
+
+            const constraints = {
+                video: { facingMode: newFacingMode }
+            };
+            const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const newVideoTrack = newStream.getVideoTracks()[0];
+
+            localStreamRef.current.addTrack(newVideoTrack);
+
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = null;
+                localVideoRef.current.srcObject = localStreamRef.current;
+            }
+
+            if (peerConnectionRef.current) {
+                const senders = peerConnectionRef.current.getSenders();
+                const sender = senders.find(s => s.track && s.track.kind === 'video');
+                if (sender) {
+                    await sender.replaceTrack(newVideoTrack);
+                }
+            }
+        } catch (err) {
+            console.error("Error switching camera:", err);
+            alert("Could not switch camera: " + err.message);
         }
     };
 
@@ -723,6 +770,15 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
             console.log(`[WEBRTC RECEIVE] Received call_signal from ${from} (type: ${type})`, signal);
 
             if (type === 'offer') {
+                if (isCallActiveRef.current) {
+                    console.log(`[WEBRTC] User is busy. Rejecting incoming call from ${from}`);
+                    socketRef.current.emit("call_signal", {
+                        to: from,
+                        from: username,
+                        type: "busy"
+                    });
+                    return;
+                }
                 incomingOfferRef.current = signal;
                 setCallType(incomingCallType || 'audio');
                 setCallerName(from);
@@ -761,6 +817,11 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                 } else {
                     iceCandidatesQueueRef.current.push(signal);
                 }
+            } else if (type === 'busy') {
+                setCallStatus('Busy');
+                setTimeout(() => {
+                    endVoiceCall(false);
+                }, 3000);
             } else if (type === 'hangup') {
                 endVoiceCall(false);
             }
@@ -2292,13 +2353,13 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                             zIndex: 2,
                                             backgroundColor: '#1e293b',
                                             objectFit: 'cover', 
-                                            transform: 'scaleX(-1)' 
+                                            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' 
                                           }
                                         : { 
                                             width: '100%', 
                                             height: '100%', 
                                             objectFit: 'cover', 
-                                            transform: 'scaleX(-1)',
+                                            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                                             position: 'absolute',
                                             top: 0,
                                             left: 0,
@@ -2457,6 +2518,33 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                         ) : (
                                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18.83 5H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1.17l1.66-2.5A2 2 0 0 1 8.5 1h7a2 2 0 0 1 1.66 1.5L18.83 5z"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                                         )}
+                                    </button>
+                                )}
+
+                                {/* Rotate Camera Button (Only for Video Calls and when connected) */}
+                                {callType === 'video' && callStatus === 'Connected' && (
+                                    <button
+                                        type="button"
+                                        onClick={switchCamera}
+                                        style={{
+                                            width: '54px',
+                                            height: '54px',
+                                            borderRadius: '50%',
+                                            border: 'none',
+                                            backgroundColor: 'rgba(255,255,255,0.08)',
+                                            color: 'white',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.2s',
+                                            outline: 'none'
+                                        }}
+                                        title="Switch Camera"
+                                    >
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                        </svg>
                                     </button>
                                 )}
 
