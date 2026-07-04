@@ -1,0 +1,16 @@
+{
+  "short_name": "Pesuvoma",
+  "name": "Pesuvoma Chat App",
+  "icons": [
+    {
+      "src": "/frontend/public/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait"
+}
