@@ -678,6 +678,20 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         }
     };
 
+    const triggerPiP = async () => {
+        try {
+            if (remoteVideoRef.current && document.pictureInPictureEnabled) {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else {
+                    await remoteVideoRef.current.requestPictureInPicture();
+                }
+            }
+        } catch (e) {
+            console.error("PiP error:", e);
+        }
+    };
+
     const formatCallTime = (totalSeconds) => {
         const mins = Math.floor(totalSeconds / 60);
         const secs = totalSeconds % 60;
@@ -2320,6 +2334,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                 ref={remoteVideoRef} 
                                 autoPlay 
                                 playsInline 
+                                autoPictureInPicture={true}
                                 style={{ 
                                     width: '100%', 
                                     height: '100%', 
@@ -2544,6 +2559,34 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                                     >
                                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                        </svg>
+                                    </button>
+                                )}
+
+                                {/* Minimize Picture-in-Picture Button (Only for Video Calls and when connected) */}
+                                {callType === 'video' && callStatus === 'Connected' && document.pictureInPictureEnabled && (
+                                    <button
+                                        type="button"
+                                        onClick={triggerPiP}
+                                        style={{
+                                            width: '54px',
+                                            height: '54px',
+                                            borderRadius: '50%',
+                                            border: 'none',
+                                            backgroundColor: 'rgba(255,255,255,0.08)',
+                                            color: 'white',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.2s',
+                                            outline: 'none'
+                                        }}
+                                        title="Minimize to Floating Window (PiP)"
+                                    >
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="8" y="8" width="14" height="10" rx="2" ry="2"></rect>
+                                            <path d="M4 16H2v-2h2zm0-4H2v-2h2zm0-4H2V6h2zm18 0h-2V6h2zM6 6H4v2h2zm4 0H8v2h2zm4 0h-2v2h2zm4 0h-2v2h2z"></path>
                                         </svg>
                                     </button>
                                 )}
