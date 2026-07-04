@@ -3,7 +3,7 @@
   "name": "Pesuvoma Chat App",
   "icons": [
     {
-      "src": "/frontend/public/logo.png",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "any"
     }
