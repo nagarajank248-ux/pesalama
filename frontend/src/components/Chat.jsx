@@ -182,6 +182,73 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     const [callType, setCallType] = useState('audio'); // 'audio' | 'video'
     const [isCameraOn, setIsCameraOn] = useState(true);
     const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
+    const [isCallMinimized, setIsCallMinimized] = useState(false);
+    const [callPos, setCallPos] = useState({ x: 20, y: 80 });
+    const [callSizeIndex, setCallSizeIndex] = useState(0); // 0 = S, 1 = M, 2 = L
+    const [isDragging, setIsDragging] = useState(false);
+    const [callPartnerName, setCallPartnerName] = useState('');
+    const [callPartnerPic, setCallPartnerPic] = useState('');
+
+    const dragStartRef = useRef({ x: 0, y: 0 });
+    const posStartRef = useRef({ x: 0, y: 0 });
+    const lastTapRef = useRef(0);
+
+    const callSizes = [
+        { width: 130, height: 190 }, // S
+        { width: 170, height: 250 }, // M
+        { width: 210, height: 310 }  // L
+    ];
+    const currentCallSize = callSizes[callSizeIndex];
+
+    const handleDragStart = (e) => {
+        if (e.touches && e.cancelable) e.preventDefault();
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        dragStartRef.current = { x: clientX, y: clientY };
+        posStartRef.current = { ...callPos };
+        setIsDragging(true);
+    };
+
+    const handleDoubleTap = (e) => {
+        const now = Date.now();
+        if (now - lastTapRef.current < 300) {
+            setIsCallMinimized(false); // Maximize
+        }
+        lastTapRef.current = now;
+    };
+
+    useEffect(() => {
+        if (!isDragging) return;
+        
+        const handleMove = (e) => {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const deltaX = clientX - dragStartRef.current.x;
+            const deltaY = clientY - dragStartRef.current.y;
+            
+            setCallPos({
+                x: Math.max(10, Math.min(window.innerWidth - currentCallSize.width - 10, posStartRef.current.x - deltaX)),
+                y: Math.max(10, Math.min(window.innerHeight - currentCallSize.height - 10, posStartRef.current.y - deltaY))
+            });
+        };
+
+        const handleEnd = () => {
+            setIsDragging(false);
+        };
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchend', handleEnd);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleEnd);
+            window.removeEventListener('touchmove', handleMove);
+            window.removeEventListener('touchend', handleEnd);
+        };
+    }, [isDragging, callPos, currentCallSize]);
     const [sidebarTab, setSidebarTab] = useState('chats');
     const [callLogs, setCallLogs] = useState([]);
     const localStreamRef = useRef(null);
@@ -202,6 +269,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     const callerNameRef = useRef('');
     const selectedUserRef = useRef(null);
     const callTypeRef = useRef('audio');
+    const friendsRef = useRef([]);
 
     useEffect(() => { callRoleRef.current = callRole; }, [callRole]);
     useEffect(() => { callStatusRef.current = callStatus; }, [callStatus]);
@@ -209,6 +277,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
     useEffect(() => { callerNameRef.current = callerName; }, [callerName]);
     useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
     useEffect(() => { callTypeRef.current = callType; }, [callType]);
+    useEffect(() => { friendsRef.current = friends; }, [friends]);
 
     const isCallActiveRef = useRef(false);
     useEffect(() => { isCallActiveRef.current = isCallActive; }, [isCallActive]);
@@ -395,6 +464,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
 
     const startCall = async (type = 'audio') => {
         setIsCallActive(true);
+        setIsCallMinimized(false);
         setCallType(type);
         setCallRole('caller');
         setCallStatus('Calling...');
@@ -402,6 +472,8 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         setIsCallMuted(false);
         setIsCallSpeaker(false);
         setFacingMode('user');
+        setCallPartnerName(selectedUser?.username || '');
+        setCallPartnerPic(selectedUserData?.profilePic || '');
         iceCandidatesQueueRef.current = [];
 
         try {
@@ -472,6 +544,7 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
 
     const acceptCall = async () => {
         setCallStatus('Connecting...');
+        setIsCallMinimized(false);
         setFacingMode('user');
         const type = callTypeRef.current;
         try {
@@ -598,8 +671,11 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
         iceCandidatesQueueRef.current = [];
 
         setIsCallActive(false);
+        setIsCallMinimized(false);
         setCallRole(null);
         setCallerName('');
+        setCallPartnerName('');
+        setCallPartnerPic('');
         setCallStatus('Calling...');
         setCallSeconds(0);
         setFacingMode('user');
@@ -796,6 +872,9 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                 incomingOfferRef.current = signal;
                 setCallType(incomingCallType || 'audio');
                 setCallerName(from);
+                setCallPartnerName(from);
+                const callerUser = (friendsRef.current || []).find(u => u?.username === from);
+                setCallPartnerPic(callerUser?.profilePic || '');
                 setCallRole('callee');
                 setCallStatus('Ringing...');
                 setIsCallActive(true);
@@ -2309,22 +2388,150 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
             )}
 
             {isCallActive && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(16px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '60px 20px', zIndex: 10000, animation: 'fadeIn 0.3s ease-out' }}>
+                <div 
+                    onDoubleClick={isCallMinimized ? () => setIsCallMinimized(false) : undefined}
+                    onTouchStart={isCallMinimized ? handleDoubleTap : undefined}
+                    style={
+                        isCallMinimized
+                            ? {
+                                position: 'fixed',
+                                bottom: `${callPos.y}px`,
+                                right: `${callPos.x}px`,
+                                width: `${currentCallSize.width}px`,
+                                height: `${currentCallSize.height}px`,
+                                backgroundColor: '#1e293b',
+                                borderRadius: '20px',
+                                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5)',
+                                zIndex: 10000,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                overflow: 'hidden',
+                                border: '2px solid rgba(255, 255, 255, 0.15)',
+                                transition: isDragging ? 'none' : 'all 0.1s ease',
+                                boxSizing: 'border-box'
+                              }
+                            : {
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                backdropFilter: 'blur(16px)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '60px 20px',
+                                zIndex: 10000,
+                                animation: 'fadeIn 0.3s ease-out',
+                                boxSizing: 'border-box'
+                              }
+                    }
+                >
+                    {/* Fullscreen Top Minimize Button Overlay */}
+                    {!isCallMinimized && (
+                        <div style={{ 
+                            position: 'absolute', 
+                            top: 'calc(16px + env(safe-area-inset-top, 0px))', 
+                            left: '20px', 
+                            right: '20px', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            zIndex: 10 
+                        }}>
+                            <button
+                                type="button"
+                                onClick={() => setIsCallMinimized(true)}
+                                style={{
+                                    background: 'rgba(15, 23, 42, 0.6)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    color: 'white',
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    outline: 'none'
+                                }}
+                                title="Minimize Call"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Minimized Drag Handle Bar */}
+                    {isCallMinimized && (
+                        <div 
+                            onTouchStart={handleDragStart}
+                            onMouseDown={handleDragStart}
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '36px',
+                                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 10px',
+                                zIndex: 10,
+                                cursor: 'move',
+                                userSelect: 'none',
+                                borderBottom: '1px solid rgba(255,255,255,0.05)'
+                            }}
+                        >
+                            <button 
+                                onClick={() => setIsCallMinimized(false)}
+                                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', outline: 'none' }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <polyline points="9 21 3 21 3 15"></polyline>
+                                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                                </svg>
+                            </button>
+                            
+                            <div style={{ display: 'flex', gap: '3px' }}>
+                                <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.5)' }}></div>
+                                <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.5)' }}></div>
+                                <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.5)' }}></div>
+                            </div>
+
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setCallSizeIndex(prev => (prev + 1) % 3); }}
+                                style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', fontWeight: '800', cursor: 'pointer', padding: '4px', outline: 'none' }}
+                                title="Toggle Size"
+                            >
+                                {callSizeIndex === 0 ? 'S' : callSizeIndex === 1 ? 'M' : 'L'}
+                            </button>
+                        </div>
+                    )}
                     
                     {/* Top Call Info */}
-                    <div style={{ textAlign: 'center', marginTop: '40px', zIndex: 2, position: 'relative' }}>
-                        <div style={{ fontSize: '12px', color: '#818cf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>
-                            {callStatus === 'Ringing...' && callRole === 'callee' 
-                                ? `Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call` 
-                                : `${callType === 'video' ? 'Video' : 'Voice'} Call`}
+                    {!isCallMinimized && (
+                        <div style={{ textAlign: 'center', marginTop: '40px', zIndex: 2, position: 'relative' }}>
+                            <div style={{ fontSize: '12px', color: '#818cf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>
+                                {callStatus === 'Ringing...' && callRole === 'callee' 
+                                    ? `Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call` 
+                                    : `${callType === 'video' ? 'Video' : 'Voice'} Call`}
+                            </div>
+                            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'white', margin: '0 0 6px 0' }}>
+                                {callPartnerName}
+                            </h2>
+                            <div style={{ fontSize: '15px', color: callStatus === 'Connected' ? '#10b981' : '#94a3b8', fontWeight: '500' }}>
+                                {callStatus === 'Connected' ? `Connected • ${formatCallTime(callSeconds)}` : callStatus}
+                            </div>
                         </div>
-                        <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'white', margin: '0 0 6px 0' }}>
-                            {callRole === 'caller' ? selectedUser?.username : callerName}
-                        </h2>
-                        <div style={{ fontSize: '15px', color: callStatus === 'Connected' ? '#10b981' : '#94a3b8', fontWeight: '500' }}>
-                            {callStatus === 'Connected' ? `Connected • ${formatCallTime(callSeconds)}` : callStatus}
-                        </div>
-                    </div>
+                    )}
 
                     {/* Glowing pulsate avatar OR Video elements */}
                     {callType === 'video' ? (
@@ -2387,33 +2594,34 @@ const Chat = ({ username, onLogout, onProfileClick }) => {
                         /* Voice call avatar display */
                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
                             {/* Glow rings */}
-                            <div className="call-ring" style={{ position: 'absolute', width: '220px', height: '220px', borderRadius: '50%', border: '2px solid rgba(99, 102, 241, 0.2)', animation: 'pulseRing 2s infinite' }} />
-                            <div className="call-ring" style={{ position: 'absolute', width: '180px', height: '180px', borderRadius: '50%', border: '2px solid rgba(99, 102, 241, 0.3)', animation: 'pulseRing 2s infinite 0.5s' }} />
+                            {/* Glow rings */}
+                            {!isCallMinimized && (
+                                <>
+                                    <div className="call-ring" style={{ position: 'absolute', width: '220px', height: '220px', borderRadius: '50%', border: '2px solid rgba(99, 102, 241, 0.2)', animation: 'pulseRing 2s infinite' }} />
+                                    <div className="call-ring" style={{ position: 'absolute', width: '180px', height: '180px', borderRadius: '50%', border: '2px solid rgba(99, 102, 241, 0.3)', animation: 'pulseRing 2s infinite 0.5s' }} />
+                                </>
+                            )}
                             
                             <div style={{ 
-                                width: '140px', 
-                                height: '140px', 
+                                width: isCallMinimized ? '60px' : '140px', 
+                                height: isCallMinimized ? '60px' : '140px', 
                                 borderRadius: '50%', 
                                 background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '60px',
+                                fontSize: isCallMinimized ? '24px' : '60px',
                                 fontWeight: 'bold',
                                 color: 'white',
-                                border: '4px solid #334155',
+                                border: isCallMinimized ? '2px solid #334155' : '4px solid #334155',
                                 boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
                                 overflow: 'hidden',
                                 zIndex: 2
                             }}>
-                                {callRole === 'caller' ? (
-                                    selectedUserData?.profilePic ? (
-                                        <img src={selectedUserData.profilePic} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : (
-                                        selectedUser?.username ? selectedUser.username[0].toUpperCase() : '?'
-                                    )
+                                {callPartnerPic ? (
+                                    <img src={callPartnerPic} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
-                                    callerName ? callerName[0].toUpperCase() : '?'
+                                    callPartnerName ? callPartnerName[0].toUpperCase() : '?'
                                 )}
                             </div>
                         </div>
